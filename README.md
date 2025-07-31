@@ -47,11 +47,17 @@ This project generates custom Pokémon card images using data from the PokéAPI.
 
 ### Usage
 
-Run the main application to generate Pokémon cards:
+1. Add your pokemon in app.py and run the main application to generate Pokémon cards:
 
 ```sh
 python app.py
 ```
+
+2. Use CLI arguments to specify the Pokémon to generate cards for:
+
+```sh
+python cli.py
+```  
 
 Generated cards will be saved in the `output/` directory.
 
