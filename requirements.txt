@@ -1,2 +1,4 @@
+rich
+keyboard
 requests
 Pillow

@@ -166,7 +166,7 @@ class CardGenerator:
         # Save
         output_path = os.path.join(self.output_dir, f"{data['name'].lower()}.png")
         card.save(output_path)
-        print(f"Saved brutalist card: {output_path}")
+        print(f"Saved card: {output_path}")
 
 
 # Export singleton
