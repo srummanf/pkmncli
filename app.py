@@ -18,5 +18,5 @@ class PokedexApp:
 
 if __name__ == "__main__":
     app = PokedexApp()
-    pokemon_name = "caterpie"  # Example Pokémon name
+    pokemon_name = "paris"  # Example Pokémon name
     app.generate_card_for(pokemon_name)  

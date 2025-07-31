@@ -157,7 +157,7 @@ class CardGenerator:
         for i, (key, value) in enumerate(stats.items()):
             y_pos = current_y + i * row_height
             if i % 2 == 0:
-                draw.rectangle([(margin, y_pos - 1), (width - margin, y_pos + row_height - 1)], fill="#E5E5E5")
+                draw.rectangle([(margin, y_pos - 1), (width - margin, y_pos + row_height - 1)], fill=light_bg_color)
             label = label_map.get(key, key.replace('-', ' ').upper())
             self.draw_text(draw, label, (margin + 10, y_pos + 2), font_size=stat_font, fill="black")
             self.draw_text(draw, str(value), (width - margin - 10, y_pos + 2),
