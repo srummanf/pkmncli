@@ -1,22 +1,19 @@
-from pokedex import card, api, finder
+from pokedex import api, card, finder
 
-class PokedexApp:
-    def __init__(self):
-        self.api = api.pokeapi
-        self.card = card
-        self.finder = finder.finder
+# Initialize components
+pokeapi = api.pokeapi
+generate_card = card.generate
+find_closest = finder.finder.find_closest
 
-    def generate_card_for(self, name: str):
-        actual_name = self.finder.find_closest(name)
-        if not actual_name:
-            print(f"Couldn't find a match for '{name}'.")
-            return
+# Pokémon to generate card for
+pokemon_name = "charizard"  
 
-        print(f"Fetching data for '{actual_name}' (closest match to '{name}')...")
-        data, species = self.api.fetch_pokemon(actual_name)
-        self.card.generate(data, species)
+# Find closest match
+actual_name = find_closest(pokemon_name)
 
-if __name__ == "__main__":
-    app = PokedexApp()
-    pokemon_name = "paris"  # Example Pokémon name
-    app.generate_card_for(pokemon_name)  
+if not actual_name:
+    print(f"Couldn't find a match for '{pokemon_name}'.")
+else:
+    print(f"Fetching data for '{actual_name}' (closest match to '{pokemon_name}')...")
+    data, species = pokeapi.fetch_pokemon(actual_name)
+    generate_card(data, species)
