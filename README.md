@@ -14,6 +14,7 @@ This project generates custom Pokémon card images using data from the PokéAPI.
 
 ```
 ├── app.py                # Main application entry point
+├── cli.py                # Command-line interface 
 ├── requirements.txt      # Python dependencies
 ├── pokedex/              # Main package
 │   ├── __init__.py
