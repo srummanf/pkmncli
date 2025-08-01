@@ -2,6 +2,15 @@
 
 This project generates custom Pokémon card images using data from the PokéAPI. Each card features a Pokémon's sprite, name, type, and base stats, styled with a unique background and font.
 
+
+<div align="center">
+  <img src="image/README/1754061485165.png" alt="Card Example 1" />
+</div>
+
+<div align="center">
+  <img src="image/README/1754061496093.png" alt="Card Example 2" />
+</div>
+
 ## Features
 
 - Fetches Pokémon data and sprites from the PokéAPI
@@ -58,7 +67,7 @@ python app.py
 
 ```sh
 python cli.py
-```  
+```
 
 Generated cards will be saved in the `output/` directory.
 
