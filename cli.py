@@ -1,3 +1,27 @@
+from PIL import Image
+import requests
+from io import BytesIO
+ASCII_CHARS = ['@', '%', '#', '*', '+', '=', '-', ':', '.', ' ']
+
+def fetch_pokemon_sprite_ascii(data, width=40):
+    sprite_url = data.get('sprites', {}).get('front_default')
+    if not sprite_url:
+        return None
+    try:
+        img_resp = requests.get(sprite_url)
+        img = Image.open(BytesIO(img_resp.content)).convert('L')
+        aspect_ratio = img.height / img.width
+        new_height = int(aspect_ratio * width * 0.55)
+        img = img.resize((width, new_height))
+        pixels = img.getdata()
+        ascii_str = ''
+        for i, pixel in enumerate(pixels):
+            ascii_str += ASCII_CHARS[pixel // 25]
+            if (i + 1) % width == 0:
+                ascii_str += '\n'
+        return ascii_str
+    except Exception:
+        return None
 #!/usr/bin/env python3
 import random
 import sys
@@ -7,8 +31,10 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.align import Align
 from rich.prompt import Prompt, Confirm
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.rule import Rule
+from rich.table import Table
+from rich.columns import Columns
 import time
 
 # Initialize Rich console with Pokemon-themed colors
@@ -21,21 +47,8 @@ POKEMON_LIGHT_BLUE = "#27abfd"
 POKEMON_DEEP_BLUE = "#1b70a2"
 POKEMON_GREEN = "#51ad60"
 POKEMON_GREY = "#dedede"
-
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-from rich.align import Align
-
-# Pokemon color palette
-POKEMON_RED = "#de1136"
-POKEMON_YELLOW = "#fec401"
-POKEMON_LIGHT_BLUE = "#27abfd"
-POKEMON_DEEP_BLUE = "#1b70a2"
-POKEMON_GREEN = "#51ad60"
-POKEMON_GREY = "#dedede"
-
-console = Console()
+POKEMON_ORANGE = "#ff8c00"
+POKEMON_PURPLE = "#8b008b"
 
 def display_ascii_art():
     """Display PkmnCLI ASCII art with split color styling for PKM / N / CLI"""
@@ -86,6 +99,140 @@ def get_random_pokemon():
         console.print(f"[bold {POKEMON_RED}]⚠️  Error getting random Pokemon:[/bold {POKEMON_RED}] {e}")
         return "pikachu"  # Ultimate fallback
 
+def create_stat_bar(stat_name, stat_value, max_value=255, color=POKEMON_LIGHT_BLUE):
+    """Create a visual bar representation of a stat"""
+    bar_width = 30
+    filled_width = int((stat_value / max_value) * bar_width)
+    
+    bar = "█" * filled_width + "░" * (bar_width - filled_width)
+    return f"[{color}]{bar}[/{color}] {stat_value:3d}"
+
+def display_pokemon_stats(data, species):
+    """Display Pokemon stats in a beautiful format with bars"""
+    
+    # Basic Info Panel
+    basic_info = Table(show_header=False, box=None, padding=(0, 1))
+    basic_info.add_column(style=f"bold {POKEMON_YELLOW}", width=12)
+    basic_info.add_column(style=f"bold {POKEMON_LIGHT_BLUE}")
+    
+    name = data["name"].title()
+    pokemon_id = data["id"]
+    height = data["height"] / 10  # Convert to meters
+    weight = data["weight"] / 10  # Convert to kg
+    base_experience = data.get("base_experience", "Unknown")
+    
+    # Get types
+    types = [t["type"]["name"].title() for t in data["types"]]
+    type_str = " / ".join(types)
+    
+    # Get abilities
+    abilities = [a["ability"]["name"].title().replace("-", " ") for a in data["abilities"]]
+    ability_str = ", ".join(abilities)
+    
+    basic_info.add_row("🆔 ID:", f"#{pokemon_id}")
+    basic_info.add_row("📏 Height:", f"{height:.1f} m")
+    basic_info.add_row("⚖️ Weight:", f"{weight:.1f} kg")
+    basic_info.add_row("⭐ Base XP:", str(base_experience))
+    basic_info.add_row("🏷️ Type:", type_str)
+    basic_info.add_row("💪 Abilities:", ability_str)
+    
+    # Stats Panel with bars
+    stats_table = Table(show_header=True, box=None, padding=(0, 1))
+    stats_table.add_column("Stat", style=f"bold {POKEMON_YELLOW}", width=15)
+    stats_table.add_column("Value", style=f"bold {POKEMON_LIGHT_BLUE}", width=40)
+    stats_table.add_column("Rating", style=f"bold {POKEMON_GREEN}", width=10)
+    
+    stat_colors = {
+        "hp": POKEMON_GREEN,
+        "attack": POKEMON_RED,
+        "defense": POKEMON_DEEP_BLUE,
+        "special-attack": POKEMON_ORANGE,
+        "special-defense": POKEMON_PURPLE,
+        "speed": POKEMON_YELLOW
+    }
+    
+    stat_names = {
+        "hp": "💖 HP",
+        "attack": "⚔️ Attack",
+        "defense": "🛡️ Defense", 
+        "special-attack": "✨ Sp. Attack",
+        "special-defense": "🔮 Sp. Defense",
+        "speed": "💨 Speed"
+    }
+    
+    total_stats = 0
+    for stat in data["stats"]:
+        stat_name = stat["stat"]["name"]
+        stat_value = stat["base_stat"]
+        total_stats += stat_value
+        
+        display_name = stat_names.get(stat_name, stat_name.title())
+        color = stat_colors.get(stat_name, POKEMON_LIGHT_BLUE)
+        bar = create_stat_bar(display_name.split(" ")[-1], stat_value, color=color)
+        
+        # Rating based on stat value
+        if stat_value >= 150:
+            rating = "🌟🌟🌟"
+        elif stat_value >= 100:
+            rating = "🌟🌟"
+        elif stat_value >= 70:
+            rating = "🌟"
+        else:
+            rating = "⭐"
+            
+        stats_table.add_row(display_name, bar, rating)
+    
+    # Add total stats
+    stats_table.add_row("", "", "")
+    total_bar = create_stat_bar("Total", total_stats, max_value=800, color=POKEMON_YELLOW)
+    stats_table.add_row(f"[bold {POKEMON_YELLOW}]📊 TOTAL", total_bar, f"[bold]{total_stats}[/bold]")
+    
+    # Create columns layout
+    info_panel = Panel(
+        basic_info,
+        title=f"[bold {POKEMON_GREEN}]📋 Basic Info[/bold {POKEMON_GREEN}]",
+        border_style=POKEMON_GREEN,
+        padding=(1, 1)
+    )
+    
+    stats_panel = Panel(
+        stats_table,
+        title=f"[bold {POKEMON_RED}]📊 Base Stats[/bold {POKEMON_RED}]",
+        border_style=POKEMON_RED,
+        padding=(1, 1)
+    )
+    
+    # Main title
+    title_text = Text()
+    title_text.append(f"🎴 {name} Stats & Info 🎴", style=f"bold {POKEMON_LIGHT_BLUE}")
+    
+    main_panel = Panel(
+        Align.center(title_text),
+        border_style=POKEMON_YELLOW,
+        padding=(0, 1)
+    )
+    
+    console.print(main_panel)
+    console.print(Columns([info_panel, stats_panel], equal=True, expand=True))
+    
+    # XP Growth Information
+    if base_experience != "Unknown":
+        xp_info = Text()
+        xp_info.append("💡 XP Info: ", style=f"bold {POKEMON_YELLOW}")
+        xp_info.append(f"This Pokémon gives {base_experience} base experience when defeated. ", style=POKEMON_LIGHT_BLUE)
+        
+        # XP Growth rate info (if available in species data)
+        growth_rate = species.get("growth_rate", {}).get("name", "unknown")
+        if growth_rate != "unknown":
+            xp_info.append(f"Growth Rate: {growth_rate.replace('-', ' ').title()}", style=f"bold {POKEMON_GREEN}")
+        
+        console.print(Panel(
+            xp_info,
+            title=f"[bold {POKEMON_ORANGE}]⭐ Experience Details[/bold {POKEMON_ORANGE}]",
+            border_style=POKEMON_ORANGE,
+            padding=(1, 2)
+        ))
+
 def prompt_pokemon_name():
     """Prompt user for Pokemon name with styling"""
     # Create a styled prompt panel
@@ -115,8 +262,8 @@ def prompt_pokemon_name():
     
     return user_input
 
-def generate_pokemon_card(pokemon_name):
-    """Generate a Pokemon card with error handling and user feedback"""
+def generate_pokemon_card_and_stats(pokemon_name):
+    """Generate a Pokemon card with stats display and error handling"""
     console.print(f"\n[bold {POKEMON_YELLOW}]🔎 Searching for '[{POKEMON_LIGHT_BLUE}]{pokemon_name}[/{POKEMON_LIGHT_BLUE}]'...[/bold {POKEMON_YELLOW}]")
     
     # Find closest match
@@ -149,43 +296,63 @@ def generate_pokemon_card(pokemon_name):
             time.sleep(0.5)
             
         except Exception as e:
-            console.print(f"[bold {POKEMON_RED}]❌ Error generating card:[/bold {POKEMON_RED}] {e}")
+            console.print(f"[bold {POKEMON_RED}]❌ Error fetching data:[/bold {POKEMON_RED}] {e}")
             return False
     
-    # Progress indicator for card generation
-    with Progress(
-        SpinnerColumn(style=POKEMON_GREEN),
-        TextColumn(f"[bold {POKEMON_RED}]🎨 Generating card..."),
-        console=console,
-        transient=True
-    ) as progress:
-        task = progress.add_task("Generating...", total=None)
+    # Display Pokemon ASCII art first
+    ascii_art = fetch_pokemon_sprite_ascii(data)
+    if ascii_art:
+        console.print(Panel(ascii_art, title=f"[bold {POKEMON_YELLOW}]ASCII Sprite[/bold {POKEMON_YELLOW}]", border_style=POKEMON_DEEP_BLUE, padding=(1,2)))
+    else:
+        console.print(f"[bold {POKEMON_RED}]No sprite available for ASCII art.[/bold {POKEMON_RED}]")
+
+    # Display Pokemon stats
+    console.print(Rule(f"[bold {POKEMON_LIGHT_BLUE}]📊 Pokemon Statistics 📊[/bold {POKEMON_LIGHT_BLUE}]", style=POKEMON_LIGHT_BLUE))
+    display_pokemon_stats(data, species)
+    
+    # Ask if user wants to generate card too
+    generate_card = Confirm.ask(
+        f"\n[bold {POKEMON_YELLOW}]🎴 Would you like to generate a card for {actual_name.title()} as well?[/bold {POKEMON_YELLOW}]",
+        default=True
+    )
+    
+    if generate_card:
+        console.print(Rule(f"[bold {POKEMON_GREEN}]🎨 Card Generation 🎨[/bold {POKEMON_GREEN}]", style=POKEMON_GREEN))
         
-        try:
-            # Generate the card
-            card.generate(data, species)
+        # Progress indicator for card generation
+        with Progress(
+            SpinnerColumn(style=POKEMON_GREEN),
+            TextColumn(f"[bold {POKEMON_RED}]🎨 Generating card..."),
+            console=console,
+            transient=True
+        ) as progress:
+            task = progress.add_task("Generating...", total=None)
             
-            # Small delay to show the spinner
-            time.sleep(0.5)
-            
-        except Exception as e:
-            console.print(f"[bold {POKEMON_RED}]❌ Error generating card:[/bold {POKEMON_RED}] {e}")
-            return False
-    
-    # Success message with styled panel
-    success_text = Text()
-    success_text.append(f"🎉 SUCCESS! Card generated for ", style=f"bold {POKEMON_GREEN}")
-    success_text.append(f"{actual_name.title()}", style=f"bold {POKEMON_LIGHT_BLUE}")
-    success_text.append("! 🎉", style=f"bold {POKEMON_GREEN}")
-    success_text.append(f"\n📁 Check the 'output' folder for your card: ", style=f"bold {POKEMON_YELLOW}")
-    success_text.append(f"{actual_name.lower()}.png", style=f"bold {POKEMON_DEEP_BLUE}")
-    
-    console.print(Panel(
-        Align.center(success_text),
-        title=f"[bold {POKEMON_GREEN}]Card Generated Successfully![/bold {POKEMON_GREEN}]",
-        border_style=POKEMON_GREEN,
-        padding=(1, 2)
-    ))
+            try:
+                # Generate the card
+                card.generate(data, species)
+                
+                # Small delay to show the spinner
+                time.sleep(0.5)
+                
+            except Exception as e:
+                console.print(f"[bold {POKEMON_RED}]❌ Error generating card:[/bold {POKEMON_RED}] {e}")
+                return True  # Return True because stats were shown successfully
+        
+        # Success message with styled panel
+        success_text = Text()
+        success_text.append(f"🎉 SUCCESS! Card generated for ", style=f"bold {POKEMON_GREEN}")
+        success_text.append(f"{actual_name.title()}", style=f"bold {POKEMON_LIGHT_BLUE}")
+        success_text.append("! 🎉", style=f"bold {POKEMON_GREEN}")
+        success_text.append(f"\n📁 Check the 'output' folder for your card: ", style=f"bold {POKEMON_YELLOW}")
+        success_text.append(f"{actual_name.lower()}.png", style=f"bold {POKEMON_DEEP_BLUE}")
+        
+        console.print(Panel(
+            Align.center(success_text),
+            title=f"[bold {POKEMON_GREEN}]Card Generated Successfully![/bold {POKEMON_GREEN}]",
+            border_style=POKEMON_GREEN,
+            padding=(1, 2)
+        ))
     
     return True
 
@@ -196,7 +363,7 @@ def show_menu():
     menu_text = Text()
     menu_text.append("What would you like to do?\n", style=f"bold {POKEMON_LIGHT_BLUE}")
     menu_text.append("1️⃣  ", style=f"bold {POKEMON_YELLOW}")
-    menu_text.append("Generate another Pokemon card\n", style=POKEMON_GREEN)
+    menu_text.append("View another Pokemon's stats & generate card\n", style=POKEMON_GREEN)
     menu_text.append("2️⃣  ", style=f"bold {POKEMON_YELLOW}")
     menu_text.append("Exit", style=POKEMON_RED)
     
@@ -212,9 +379,9 @@ def main():
     display_ascii_art()
     
     welcome_text = Text()
-    welcome_text.append("Welcome to the Pokemon Card Generator! ", style=f"bold {POKEMON_LIGHT_BLUE}")
+    welcome_text.append("Welcome to the Enhanced Pokemon Stats & Card Generator! ", style=f"bold {POKEMON_LIGHT_BLUE}")
     welcome_text.append("🌟", style=POKEMON_YELLOW)
-    welcome_text.append("\nThis tool creates beautiful trading card-style images of Pokemon.", style=POKEMON_DEEP_BLUE)
+    welcome_text.append("\nThis tool shows detailed Pokemon statistics with XP info and creates beautiful trading cards.", style=POKEMON_DEEP_BLUE)
     
     console.print(Panel(
         welcome_text,
@@ -229,8 +396,8 @@ def main():
             # Get Pokemon name from user
             pokemon_name = prompt_pokemon_name()
             
-            # Generate the card
-            success = generate_pokemon_card(pokemon_name)
+            # Generate stats and optionally card
+            success = generate_pokemon_card_and_stats(pokemon_name)
             
             if success:
                 # Show menu for next action
@@ -244,11 +411,11 @@ def main():
                     )
                     
                     if choice == "1":
-                        console.print(Rule(f"[bold {POKEMON_LIGHT_BLUE}]🔄 Starting New Card Generation 🔄[/bold {POKEMON_LIGHT_BLUE}]", style=POKEMON_LIGHT_BLUE))
+                        console.print(Rule(f"[bold {POKEMON_LIGHT_BLUE}]🔄 Starting New Pokemon Lookup 🔄[/bold {POKEMON_LIGHT_BLUE}]", style=POKEMON_LIGHT_BLUE))
                         break  # Continue to outer loop
                     elif choice == "2":
                         goodbye_text = Text()
-                        goodbye_text.append("👋 Thanks for using Pokemon Card Generator!\n", style=f"bold {POKEMON_LIGHT_BLUE}")
+                        goodbye_text.append("👋 Thanks for using Pokemon Stats & Card Generator!\n", style=f"bold {POKEMON_LIGHT_BLUE}")
                         goodbye_text.append("🎴 Happy collecting! 🎴", style=f"bold {POKEMON_YELLOW}")
                         
                         console.print(Panel(
@@ -259,14 +426,14 @@ def main():
                         ))
                         sys.exit(0)
             else:
-                # If card generation failed, ask if they want to try again
+                # If lookup failed, ask if they want to try again
                 retry = Confirm.ask(
                     "[bold yellow]🔄 Would you like to try with a different Pokemon?[/bold yellow]",
                     default=True
                 )
                 if not retry:
                     goodbye_text = Text()
-                    goodbye_text.append("👋 Thanks for using Pokemon Card Generator!", style="bold bright_cyan")
+                    goodbye_text.append("👋 Thanks for using Pokemon Stats & Card Generator!", style="bold bright_cyan")
                     
                     console.print(Panel(
                         Align.center(goodbye_text),
@@ -281,7 +448,7 @@ def main():
             console.print("\n")
             interrupt_text = Text()
             interrupt_text.append("⚡ Interrupted by user\n", style="bold bright_red")
-            interrupt_text.append("👋 Thanks for using Pokemon Card Generator!", style="bold bright_cyan")
+            interrupt_text.append("👋 Thanks for using Pokemon Stats & Card Generator!", style="bold bright_cyan")
             
             console.print(Panel(
                 Align.center(interrupt_text),
@@ -298,7 +465,7 @@ def main():
             )
             if not retry:
                 goodbye_text = Text()
-                goodbye_text.append("👋 Thanks for using Pokemon Card Generator!", style="bold bright_cyan")
+                goodbye_text.append("👋 Thanks for using Pokemon Stats & Card Generator!", style="bold bright_cyan")
                 
                 console.print(Panel(
                     Align.center(goodbye_text),
